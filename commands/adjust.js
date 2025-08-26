@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -45,7 +45,7 @@ module.exports = {
         if (interaction.channel.id !== SCOREBOARD_CHANNEL_ID) {
             return interaction.reply({ 
                 content: '❌ This command can only be used in the sniping scoreboard channel.', 
-                ephemeral: true 
+                flags: MessageFlags.Ephemeral 
             });
         }
 
@@ -53,7 +53,7 @@ module.exports = {
         if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
             return interaction.reply({ 
                 content: '❌ You need administrator permissions to use this command.', 
-                ephemeral: true 
+                flags: MessageFlags.Ephemeral 
             });
         }
 

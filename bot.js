@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionFlagsBits, Collection } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionFlagsBits, Collection, MessageFlags } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
@@ -328,9 +328,9 @@ client.on('interactionCreate', async (interaction) => {
         } catch (error) {
             console.error(error);
             if (interaction.replied || interaction.deferred) {
-                await interaction.followUp({ content: 'There was an error while executing this command!', ephemeral: true });
+                await interaction.followUp({ content: 'There was an error while executing this command!', flags: MessageFlags.Ephemeral });
             } else {
-                await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
+                await interaction.reply({ content: 'There was an error while executing this command!', flags: MessageFlags.Ephemeral });
             }
         }
     }
@@ -365,21 +365,21 @@ client.on('interactionCreate', async (interaction) => {
                 delete originalSnipeMessage.snipeData;
                 delete interaction.message.confirmData;
             } else {
-                await interaction.reply({ content: 'Only the person who reacted can confirm this.', ephemeral: true });
+                await interaction.reply({ content: 'Only the person who reacted can confirm this.', flags: MessageFlags.Ephemeral });
             }
         } else if (interaction.customId === 'confirm_no' && interaction.message.confirmData) {
             if (interaction.user.id === interaction.message.confirmData.sniped) {
                 await interaction.update({ content: '❌ Self-confirmation cancelled.', embeds: [], components: [] });
                 delete interaction.message.confirmData;
             } else {
-                await interaction.reply({ content: 'Only the person who reacted can cancel this.', ephemeral: true });
+                await interaction.reply({ content: 'Only the person who reacted can cancel this.', flags: MessageFlags.Ephemeral });
             }
         }
         // Reset confirmation buttons
         else if (interaction.customId === 'reset_confirm') {
             // Check admin permissions
             if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-                return interaction.reply({ content: '❌ You need administrator permissions to reset scores.', ephemeral: true });
+                return interaction.reply({ content: '❌ You need administrator permissions to reset scores.', flags: MessageFlags.Ephemeral });
             }
 
             // Reset scores

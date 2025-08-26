@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js');
 
 const SCOREBOARD_CHANNEL_ID = '1409997637192781864';
 
@@ -39,6 +39,6 @@ Use admin commands in the scoreboard channel for score management.`;
             .setDescription(description)
             .setFooter({ text: 'Good luck hunting! 📸' });
 
-        await interaction.reply({ embeds: [embed], ephemeral: true });
+        await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     },
 };
