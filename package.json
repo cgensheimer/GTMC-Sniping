@@ -1,0 +1,26 @@
+{
+  "name": "motorcycle-sniping-bot",
+  "version": "1.0.0",
+  "description": "Discord bot for motorcycle club sniping game",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js",
+    "dev": "nodemon bot.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "motorcycle",
+    "sniping",
+    "game"
+  ],
+  "author": "Cole Gensheimer & Claude Code",
+  "license": "MIT"
+}
