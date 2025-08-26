@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionFlagsBits } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionFlagsBits, Collection } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
@@ -40,6 +40,21 @@ const client = new Client({
         GatewayIntentBits.GuildMessageReactions
     ]
 });
+
+// Load slash commands
+client.commands = new Collection();
+const commandsPath = path.join(__dirname, 'commands');
+const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+
+for (const file of commandFiles) {
+    const filePath = path.join(commandsPath, file);
+    const command = require(filePath);
+    if ('data' in command && 'execute' in command) {
+        client.commands.set(command.data.name, command);
+    } else {
+        console.log(`[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`);
+    }
+}
 
 // Bot ready event
 client.once('clientReady', () => {
@@ -297,127 +312,77 @@ async function updateScoreboard() {
     }
 }
 
-// Handle button interactions
+// Handle all interactions
 client.on('interactionCreate', async (interaction) => {
-    if (!interaction.isButton()) return;
+    // Handle slash commands
+    if (interaction.isChatInputCommand()) {
+        const command = interaction.client.commands.get(interaction.commandName);
 
-    if (interaction.customId === 'confirm_yes' && interaction.message.confirmData) {
-        const { sniper, sniped, originalSnipeMessage } = interaction.message.confirmData;
-        
-        // Only the person who reacted can confirm
-        if (interaction.user.id === sniped) {
-            // Update scores
-            if (!scores[sniper]) scores[sniper] = 0;
-            scores[sniper]++;
-            saveScores();
-
-            // Send confirmation message
-            const embed = new EmbedBuilder()
-                .setColor('#00FF00')
-                .setTitle('🎯 SNIPE CONFIRMED!')
-                .setDescription(`<@${sniper}> successfully sniped <@${sniped}>!\n\n**Score Update:**\n<@${sniper}> now has **${scores[sniper]}** point${scores[sniper] === 1 ? '' : 's'}!`)
-                .setFooter({ text: 'Self-confirmed snipe!' })
-                .setTimestamp();
-
-            await originalSnipeMessage.edit({ embeds: [embed] });
-            await interaction.update({ content: '✅ Snipe confirmed!', embeds: [], components: [] });
-
-            // Update scoreboard
-            updateScoreboard();
-
-            // Clean up data
-            delete originalSnipeMessage.snipeData;
-            delete interaction.message.confirmData;
-        } else {
-            await interaction.reply({ content: 'Only the person who reacted can confirm this.', ephemeral: true });
+        if (!command) {
+            console.error(`No command matching ${interaction.commandName} was found.`);
+            return;
         }
-    } else if (interaction.customId === 'confirm_no' && interaction.message.confirmData) {
-        if (interaction.user.id === interaction.message.confirmData.sniped) {
-            await interaction.update({ content: '❌ Self-confirmation cancelled.', embeds: [], components: [] });
-            delete interaction.message.confirmData;
-        } else {
-            await interaction.reply({ content: 'Only the person who reacted can cancel this.', ephemeral: true });
+
+        try {
+            await command.execute(interaction);
+        } catch (error) {
+            console.error(error);
+            if (interaction.replied || interaction.deferred) {
+                await interaction.followUp({ content: 'There was an error while executing this command!', ephemeral: true });
+            } else {
+                await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
+            }
         }
     }
-});
-
-// Handle admin commands
-client.on('messageCreate', async (message) => {
-    // Ignore bot messages
-    if (message.author.bot) return;
-    
-    // Check if message is in scoreboard channel and starts with !
-    if (message.channel.id === SCOREBOARD_CHANNEL_ID && message.content.startsWith('!')) {
-        // Check if user has admin permissions
-        if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
-            return message.reply('❌ You need administrator permissions to use admin commands.');
-        }
-
-        const args = message.content.slice(1).split(' ');
-        const command = args[0].toLowerCase();
-
-        if (command === 'adjust' && args.length >= 3) {
-            // !adjust @user +5 or !adjust @user -2
-            const userMention = args[1];
-            const adjustment = parseInt(args[2]);
+    // Handle button interactions
+    else if (interaction.isButton()) {
+        // Self-confirmation buttons
+        if (interaction.customId === 'confirm_yes' && interaction.message.confirmData) {
+            const { sniper, sniped, originalSnipeMessage } = interaction.message.confirmData;
             
-            if (isNaN(adjustment)) {
-                return message.reply('❌ Invalid adjustment amount. Use `!adjust @user +5` or `!adjust @user -2`');
+            // Only the person who reacted can confirm
+            if (interaction.user.id === sniped) {
+                // Update scores
+                if (!scores[sniper]) scores[sniper] = 0;
+                scores[sniper]++;
+                saveScores();
+
+                // Send confirmation message
+                const embed = new EmbedBuilder()
+                    .setColor('#00FF00')
+                    .setTitle('🎯 SNIPE CONFIRMED!')
+                    .setDescription(`<@${sniper}> successfully sniped <@${sniped}>!\n\n**Score Update:**\n<@${sniper}> now has **${scores[sniper]}** point${scores[sniper] === 1 ? '' : 's'}!`)
+                    .setFooter({ text: 'Self-confirmed snipe!' })
+                    .setTimestamp();
+
+                await originalSnipeMessage.edit({ embeds: [embed] });
+                await interaction.update({ content: '✅ Snipe confirmed!', embeds: [], components: [] });
+
+                // Update scoreboard
+                updateScoreboard();
+
+                // Clean up data
+                delete originalSnipeMessage.snipeData;
+                delete interaction.message.confirmData;
+            } else {
+                await interaction.reply({ content: 'Only the person who reacted can confirm this.', ephemeral: true });
+            }
+        } else if (interaction.customId === 'confirm_no' && interaction.message.confirmData) {
+            if (interaction.user.id === interaction.message.confirmData.sniped) {
+                await interaction.update({ content: '❌ Self-confirmation cancelled.', embeds: [], components: [] });
+                delete interaction.message.confirmData;
+            } else {
+                await interaction.reply({ content: 'Only the person who reacted can cancel this.', ephemeral: true });
+            }
+        }
+        // Reset confirmation buttons
+        else if (interaction.customId === 'reset_confirm') {
+            // Check admin permissions
+            if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+                return interaction.reply({ content: '❌ You need administrator permissions to reset scores.', ephemeral: true });
             }
 
-            const userId = userMention.replace(/[<@!>]/g, '');
-            
-            if (!scores[userId]) scores[userId] = 0;
-            scores[userId] += adjustment;
-            
-            // Don't allow negative scores
-            if (scores[userId] < 0) scores[userId] = 0;
-            
-            saveScores();
-
-            const embed = new EmbedBuilder()
-                .setColor('#4CAF50')
-                .setTitle('📊 Score Adjusted')
-                .setDescription(`<@${userId}>'s score has been adjusted by **${adjustment > 0 ? '+' : ''}${adjustment}**\n\nNew score: **${scores[userId]}** point${scores[userId] === 1 ? '' : 's'}`)
-                .setFooter({ text: `Adjusted by ${message.author.displayName}` })
-                .setTimestamp();
-
-            await message.reply({ embeds: [embed] });
-            updateScoreboard();
-
-        } else if (command === 'reset') {
-            // !reset - clear all scores
-            const embed = new EmbedBuilder()
-                .setColor('#FF6B35')
-                .setTitle('⚠️ Reset Scoreboard?')
-                .setDescription('This will permanently delete all scores. React with ✅ to confirm or ❌ to cancel.')
-                .setFooter({ text: 'This action cannot be undone!' });
-
-            const resetMessage = await message.reply({ embeds: [embed] });
-            await resetMessage.react('✅');
-            await resetMessage.react('❌');
-
-            resetMessage.resetData = { admin: message.author.id };
-
-        } else if (command === 'help') {
-            const embed = new EmbedBuilder()
-                .setColor('#2196F3')
-                .setTitle('🛠️ Admin Commands')
-                .setDescription('**Available Commands:**\n`!adjust @user +5` - Add 5 points to user\n`!adjust @user -2` - Remove 2 points from user\n`!reset` - Clear all scores (requires confirmation)\n`!help` - Show this help message')
-                .setFooter({ text: 'Admin permissions required' });
-
-            await message.reply({ embeds: [embed] });
-        }
-    }
-});
-
-// Handle reset confirmation
-client.on('messageReactionAdd', async (reaction, user) => {
-    if (user.bot) return;
-    
-    if (reaction.message.resetData && user.id === reaction.message.resetData.admin) {
-        if (reaction.emoji.name === '✅') {
-            // Confirm reset
+            // Reset scores
             scores = {};
             saveScores();
 
@@ -425,25 +390,22 @@ client.on('messageReactionAdd', async (reaction, user) => {
                 .setColor('#FF0000')
                 .setTitle('🗑️ Scoreboard Reset')
                 .setDescription('All scores have been cleared!')
-                .setFooter({ text: `Reset by ${user.displayName}` })
+                .setFooter({ text: `Reset by ${interaction.user.displayName}` })
                 .setTimestamp();
 
-            await reaction.message.edit({ embeds: [embed] });
+            await interaction.update({ embeds: [embed], components: [] });
             updateScoreboard();
-            
-            delete reaction.message.resetData;
-        } else if (reaction.emoji.name === '❌') {
-            // Cancel reset
+        } else if (interaction.customId === 'reset_cancel') {
             const embed = new EmbedBuilder()
                 .setColor('#4CAF50')
                 .setTitle('✅ Reset Cancelled')
                 .setDescription('Scoreboard reset has been cancelled.');
 
-            await reaction.message.edit({ embeds: [embed] });
-            delete reaction.message.resetData;
+            await interaction.update({ embeds: [embed], components: [] });
         }
     }
 });
+
 
 // Handle errors
 client.on('error', console.error);
@@ -451,4 +413,4 @@ client.on('error', console.error);
 // Login to Discord
 client.login(BOT_TOKEN);
 
-module.exports = { client, scores, updateScoreboard };
+module.exports = { client, scores, updateScoreboard, saveScores };
