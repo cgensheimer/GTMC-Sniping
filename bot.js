@@ -7,6 +7,7 @@ require('dotenv').config();
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const SNIPING_CHANNEL_ID = '1366480642459701368';
 const SCOREBOARD_CHANNEL_ID = '1409997637192781864';
+const THREAD_ARCHIVE_DELAY = 60 * 60 * 1000; // 1 hour in milliseconds
 
 // File to store scores
 const SCORES_FILE = path.join(__dirname, 'scores.json');
@@ -247,7 +248,7 @@ client.on('messageReactionAdd', async (reaction, user) => {
             const embed = new EmbedBuilder()
                 .setColor('#00FF00')
                 .setTitle('🎯 SNIPE CONFIRMED!')
-                .setDescription(`<@${sniper}> successfully sniped <@${sniped}>!\n\n**Score Update:**\n<@${sniper}> now has **${scores[sniper]}** point${scores[sniper] === 1 ? '' : 's'}!`)
+                .setDescription(`<@${sniper}> successfully sniped <@${sniped}>!\n\n**Score Update:**\n<@${sniper}> now has **${scores[sniper]}** point${scores[sniper] === 1 ? '' : 's'}!\n\n*Thread will auto-archive in 1 hour*`)
                 .setFooter({ text: 'Great shot!' })
                 .setTimestamp();
             
@@ -256,11 +257,30 @@ client.on('messageReactionAdd', async (reaction, user) => {
             // Update scoreboard
             updateScoreboard();
             
+            // Schedule thread archiving after 1 hour
+            if (reaction.message.channel.isThread()) {
+                scheduleThreadArchive(reaction.message.channel);
+            }
+            
             // Clean up snipe data
             delete reaction.message.snipeData;
         }
     }
 });
+
+// Function to archive thread after delay
+function scheduleThreadArchive(thread, delayMs = THREAD_ARCHIVE_DELAY) {
+    setTimeout(async () => {
+        try {
+            if (thread && !thread.archived) {
+                await thread.setArchived(true);
+                console.log(`Archived thread: ${thread.name}`);
+            }
+        } catch (error) {
+            console.error('Error archiving thread:', error);
+        }
+    }, delayMs);
+}
 
 // Function to update scoreboard
 async function updateScoreboard() {
@@ -351,7 +371,7 @@ client.on('interactionCreate', async (interaction) => {
                 const embed = new EmbedBuilder()
                     .setColor('#00FF00')
                     .setTitle('🎯 SNIPE CONFIRMED!')
-                    .setDescription(`<@${sniper}> successfully sniped <@${sniped}>!\n\n**Score Update:**\n<@${sniper}> now has **${scores[sniper]}** point${scores[sniper] === 1 ? '' : 's'}!`)
+                    .setDescription(`<@${sniper}> successfully sniped <@${sniped}>!\n\n**Score Update:**\n<@${sniper}> now has **${scores[sniper]}** point${scores[sniper] === 1 ? '' : 's'}!\n\n*Thread will auto-archive in 1 hour*`)
                     .setFooter({ text: 'Self-confirmed snipe!' })
                     .setTimestamp();
 
@@ -360,6 +380,11 @@ client.on('interactionCreate', async (interaction) => {
 
                 // Update scoreboard
                 updateScoreboard();
+
+                // Schedule thread archiving after 1 hour
+                if (interaction.channel.isThread()) {
+                    scheduleThreadArchive(interaction.channel);
+                }
 
                 // Clean up data
                 delete originalSnipeMessage.snipeData;
