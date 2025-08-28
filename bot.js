@@ -352,8 +352,9 @@ async function updateScoreboard() {
             const scoreboardChannel = guild.channels.cache.get(SCOREBOARD_CHANNEL_ID);
             
             if (scoreboardChannel) {
-                // Sort scores
+                // Sort scores and filter out 0-point users
                 const sortedScores = Object.entries(scores)
+                    .filter(([,score]) => score > 0)
                     .sort(([,a], [,b]) => b - a)
                     .slice(0, 10); // Top 10
                 
