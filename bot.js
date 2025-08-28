@@ -92,12 +92,13 @@ client.on('messageCreate', async (message) => {
                         const embed = new EmbedBuilder()
                             .setColor('#4CAF50')
                             .setTitle('✅ Confirm Snipe')
-                            .setDescription(`<@${mentionedUser.id}>, you've been accused of being sniped by <@${message.author.id}>!\n\nReact with ✅ to confirm this snipe.`)
-                            .setFooter({ text: 'Click the checkmark to confirm' })
+                            .setDescription(`<@${mentionedUser.id}>, you've been accused of being sniped by <@${message.author.id}>!\n\nReact with ✅ to confirm this snipe or ❌ if this isn't you.`)
+                            .setFooter({ text: 'Click ✅ to confirm or ❌ to deny' })
                             .setTimestamp();
                         
                         const confirmMessage = await thread.send({ embeds: [embed] });
                         await confirmMessage.react('✅');
+                        await confirmMessage.react('❌');
                         
                         // Store snipe data for reaction handling
                         confirmMessage.snipeData = {
@@ -170,12 +171,13 @@ client.on('messageCreate', async (message) => {
             const embed = new EmbedBuilder()
                 .setColor('#4CAF50')
                 .setTitle('✅ Confirm Snipe')
-                .setDescription(`<@${mentionedUser.id}>, you've been accused of being sniped by <@${message.author.id}>!\n\nReact with ✅ to confirm this snipe.`)
-                .setFooter({ text: 'Click the checkmark to confirm' })
+                .setDescription(`<@${mentionedUser.id}>, you've been accused of being sniped by <@${message.author.id}>!\n\nReact with ✅ to confirm this snipe or ❌ if this isn't you.`)
+                .setFooter({ text: 'Click ✅ to confirm or ❌ to deny' })
                 .setTimestamp();
             
             const confirmMessage = await message.reply({ embeds: [embed] });
             await confirmMessage.react('✅');
+            await confirmMessage.react('❌');
             
             // Store snipe data for reaction handling
             confirmMessage.snipeData = {
@@ -264,6 +266,34 @@ client.on('messageReactionAdd', async (reaction, user) => {
             
             // Clean up snipe data
             delete reaction.message.snipeData;
+        }
+    }
+    // Handle deny reaction
+    else if (reaction.emoji.name === '❌' && reaction.message.snipeData) {
+        const { sniper, sniped, originalMessage, isSelfConfirm } = reaction.message.snipeData;
+        
+        // Only handle deny for direct snipe confirmations (not self-confirm)
+        if (!isSelfConfirm && user.id === sniped) {
+            // Convert back to "Who do you think you have sniped?" flow
+            const embed = new EmbedBuilder()
+                .setColor('#FF6B35')
+                .setTitle('🎯 New Snipe Detected!')
+                .setDescription('Who do you think you have sniped?\n\n**Instructions:**\n• Tag the person you sniped using @username\n• Or if you were sniped, you can confirm it yourself first!\n• The sniped person will need to confirm with a ✅ reaction')
+                .setFooter({ text: 'Motorcycle Club Sniping Game' })
+                .setTimestamp();
+            
+            await reaction.message.edit({ embeds: [embed] });
+            
+            // Clear existing reactions and add self-confirm option
+            await reaction.message.reactions.removeAll();
+            await reaction.message.react('✅');
+            
+            // Update snipe data for self-confirmation flow
+            reaction.message.snipeData = {
+                sniper: sniper,
+                originalMessage: originalMessage,
+                isSelfConfirm: true
+            };
         }
     }
 });
