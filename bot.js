@@ -164,6 +164,11 @@ client.on('messageCreate', async (message) => {
     const isSnipingThread = message.channel.isThread() && message.channel.parent?.id === SNIPING_CHANNEL_ID;
     
     if (isSnipingThread && message.mentions.users.size > 0) {
+        // Check if there's already an active snipe flow in this thread
+        if (await hasActiveSnipeFlow(message.channel)) {
+            return; // Don't create new confirmations if one already exists
+        }
+        
         // Get the mentioned user (assuming only one for simplicity)
         const mentionedUser = message.mentions.users.first();
         
@@ -298,6 +303,23 @@ client.on('messageReactionAdd', async (reaction, user) => {
     }
 });
 
+// Function to check if thread has active snipe flow
+async function hasActiveSnipeFlow(channel) {
+    if (!channel.isThread()) return false;
+    
+    try {
+        const messages = await channel.messages.fetch({ limit: 50 });
+        return messages.some(msg => 
+            msg.author.id === client.user.id && 
+            msg.snipeData && 
+            (msg.embeds[0]?.title?.includes('New Snipe Detected') || msg.embeds[0]?.title?.includes('Confirm Snipe'))
+        );
+    } catch (error) {
+        console.error('Error checking active snipe flow:', error);
+        return false;
+    }
+}
+
 // Function to archive thread after delay
 function scheduleThreadArchive(thread, delayMs = THREAD_ARCHIVE_DELAY) {
     setTimeout(async () => {
@@ -315,6 +337,15 @@ function scheduleThreadArchive(thread, delayMs = THREAD_ARCHIVE_DELAY) {
 // Function to update scoreboard
 async function updateScoreboard() {
     try {
+        // Reload scores from file to get latest changes from admin commands
+        try {
+            if (fs.existsSync(SCORES_FILE)) {
+                scores = JSON.parse(fs.readFileSync(SCORES_FILE, 'utf8'));
+            }
+        } catch (error) {
+            console.error('Error reloading scores:', error);
+        }
+        
         const guilds = client.guilds.cache;
         
         for (const [guildId, guild] of guilds) {
@@ -343,16 +374,25 @@ async function updateScoreboard() {
                     .setFooter({ text: `Last updated: ${new Date().toLocaleString()}` })
                     .setTimestamp();
                 
-                // Try to find existing scoreboard message and update it
-                const messages = await scoreboardChannel.messages.fetch({ limit: 10 });
+                // Get most recent messages to check if leaderboard is already the latest
+                const messages = await scoreboardChannel.messages.fetch({ limit: 5 });
+                const latestMessage = messages.first();
                 const existingScoreboard = messages.find(msg => 
                     msg.author.id === client.user.id && 
                     msg.embeds[0]?.title?.includes('LEADERBOARD')
                 );
                 
                 if (existingScoreboard) {
-                    await existingScoreboard.edit({ embeds: [embed] });
+                    // If leaderboard is already the most recent message, just edit it
+                    if (latestMessage && latestMessage.id === existingScoreboard.id) {
+                        await existingScoreboard.edit({ embeds: [embed] });
+                    } else {
+                        // Delete old leaderboard and post new one to make it most recent
+                        await existingScoreboard.delete();
+                        await scoreboardChannel.send({ embeds: [embed] });
+                    }
                 } else {
+                    // No existing leaderboard, post new one
                     await scoreboardChannel.send({ embeds: [embed] });
                 }
             }
